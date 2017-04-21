@@ -1,8 +1,8 @@
-var mysql = require("mysql");
-var inquirer = require("inquirer");
-var tto = require('terminal-table-output').create();
+const mysql = require("mysql");
+const inquirer = require("inquirer");
+const tto = require('terminal-table-output').create();
 
-var connection = mysql.createConnection({
+const connection = mysql.createConnection({
     host: "localhost",
     port: 3306,
     user: "root",
@@ -14,55 +14,101 @@ connection.connect(function(error) {
     if (error) throw error;
 });
 
+var resSize;
+
 // Running this application will first display all of the items available for sale. Include the ids, names, and prices of products for sale.
 
-bamfAzon = {
-    query: connection.query("SELECT * FROM products", function(error, results) {
-        if (error) throw error;
+const bamfAzon = {
+    displayProducts: function(results) {
+        resSize = Object.keys(results).length;
+        // var table = function() {
+        tto.line()
+        tto.pushrow(["Item ID", "Product Name", "Price (per Item)", "Stock Quantity"])
+        for (let i = 0; i < resSize; i++) {
+            tto.line()
+            // console.log(results);
+            // console.log(results.item_id);
+            tto.pushrow([results[i].item_id, results[i].product_name, parseFloat(results[i].price), results[i].stock_quantity])
+        }
+        tto.line()
+        tto.print(true);
 
-        var displayProducts = function() {
+        // console.log("==========================");
+        // console.log(productArray);
+        // console.log("==========================");
+        // return productArray;
+        // }
 
-            var table = function() {
-                for (var i = 0; i < results.length; i++) {
-                    tto.line()
-                    tto.pushrow([results[i].item_id, results[i].product_name, parseFloat(results[i].price), results[i].stock_quantity])
-                }
-                tto.line()
-                tto.print(true);
+    },
+    itemDisplay: function(results) {
+        tto.line()
+        tto.pushrow(["Item ID", "Product Name", "Price (per Item)", "Stock Quantity"])
+        tto.line()
+        tto.pushrow([chosenItem.item_id, chosenItem.product_name, parseFloat(chosenItem.price), chosenItem.stock_quantity])
+        tto.line()
+        tto.print(true);
 
-                // console.log("==========================");
-                // console.log(productArray);
-                // console.log("==========================");
-                // return productArray;
-            };
 
-            table();
-            autoTeller();
+        table();
+        autoTeller();
+    },
 
-        };
+    // The app should then prompt users with two messages.
+    // The first should ask them the ID of the product they would like to buy.
 
-        // The app should then prompt users with two messages.
-        // The first should ask them the ID of the product they would like to buy.
+    autoTeller: function(results) {
 
-        var autoTeller = function() {
+        resSize = Object.keys(results).length;
 
-            inquirer.prompt({
-                name: "itemSelection",
-                type: "list",
-                choices: function() {
-                    var productArray = [];
-                    for (var i = 0; i < results.length; i++) {
-                        productArray.push(results[i]);
-                    }
-                    return productArray;
-                },
-                message: "Please select the ID of the item you wish to purchase."
-            }).then(function(user) {
-                console.log(user.itemSelection);
-            });
-        };
-        displayProducts();
-    })
+        bamfAzon.displayProducts(results);
+
+        inquirer.prompt({
+            name: "itemSelection",
+            type: "list",
+            choices: function() {
+                var productArray = [];
+                for (let i = 0; i < resSize; i++) {
+                    productArray.push("\"" + results[i].item_id + "\"");
+                } // end for loop
+                return productArray;
+            },
+            message: "Please select the ID of the item you wish to purchase."
+        }).then(function(selection) {
+            var chosenItem;
+            for (let i = 0; i < resSize; i++) {
+                if ("\"" + results[i].item_id + "\"" === selection.itemSelection) {
+                    chosenItem = results[i].product_name;
+                    if (chosenItem.stock_quantity > 1) {
+
+                        bamfAzon.itemDisplay(results);
+
+                        inquirer.prompt({
+                            name: "itemQuantity",
+                            type: "input",
+                            message: "How many would you like to purchase?"
+                        }).then(function(quantity) {
+                            var chosenQuantity;
+                            for (let i = 0; i < 2; i++) {
+                                chosenQuantity = quantity.itemQuantity;
+                                results[i].stock_quantity -= chosenQuantity;
+                            }; // end of chosenQuantity loop.
+                        }); // end of itemQuantity then.
+                    }; // end of in stock check if.
+                }; // end of item selection if.
+            }; // end of results length for loop.
+        });
+    },
+    run: function() {
+        connection.query("SELECT * FROM products", function(error, results) {
+            if (error) throw error;
+            // console.log(results);
+            // bamfAzon.displayProducts(results);
+            bamfAzon.autoTeller(results);
+            return results;
+        });
+
+
+    }
 };
 
 // The second message should ask how many units of the product they would like to buy.
@@ -74,4 +120,5 @@ bamfAzon = {
 // This means updating the SQL database to reflect the remaining quantity.
 // Once the update goes through, show the customer the total cost of their purchase.
 
-bamfAzon.query;
+
+bamfAzon.run();
