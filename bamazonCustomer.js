@@ -1,6 +1,6 @@
 const mysql = require("mysql");
 const inquirer = require("inquirer");
-const tto = require('terminal-table-output').create();
+
 
 const connection = mysql.createConnection({
     host: "localhost",
@@ -15,44 +15,59 @@ connection.connect(function(error) {
 });
 
 var resSize;
+var chosenItem;
+var display;
 
 // Running this application will first display all of the items available for sale. Include the ids, names, and prices of products for sale.
 
 const bamfAzon = {
     displayProducts: function(results) {
         resSize = Object.keys(results).length;
-        // var table = function() {
+        let tto = require('terminal-table-output').create();
         tto.line()
         tto.pushrow(["Item ID", "Product Name", "Price (per Item)", "Stock Quantity"])
         for (let i = 0; i < resSize; i++) {
             tto.line()
-            // console.log(results);
-            // console.log(results.item_id);
-            tto.pushrow([results[i].item_id, results[i].product_name, parseFloat(results[i].price), results[i].stock_quantity])
+            tto.pushrow([results[i].item_id, results[i].product_name, "$" + results[i].price + ".00", results[i].stock_quantity])
         }
         tto.line()
         tto.print(true);
-
-        // console.log("==========================");
-        // console.log(productArray);
-        // console.log("==========================");
-        // return productArray;
-        // }
-
     },
-    itemDisplay: function(results) {
-        tto.line()
-        tto.pushrow(["Item ID", "Product Name", "Price (per Item)", "Stock Quantity"])
-        tto.line()
-        tto.pushrow([chosenItem.item_id, chosenItem.product_name, parseFloat(chosenItem.price), chosenItem.stock_quantity])
-        tto.line()
-        tto.print(true);
+    itemPurchase: function(chosenItem) {
+        connection.query("SELECT item_id, price, stock_quantity FROM products WHERE ?", { product_name: chosenItem }, function(error, display) {
+            if (error) throw error;
+            for (let i = 0; i < display.length; i++) {
+                var itemCost = display[i].price;
+                let tto = require('terminal-table-output').create();
+                tto.line()
+                tto.pushrow(["Item ID", "Product Name", "Price (per Item)", "Stock Quantity"])
+                tto.line()
+                tto.pushrow([display[i].item_id, chosenItem, "$" + itemCost + ".00", display[i].stock_quantity])
+                tto.line()
+                tto.print(true);
+                if (display !== undefined) {
+                    inquirer.prompt({
+                        name: "itemQuantity",
+                        type: "input",
+                        message: "How many would you like to purchase?"
+                    }).then(function(quantity) {
+                        var purchaseCount = quantity.itemQuantity;
+                        var decrementCount = display[i].stock_quantity - purchaseCount;
+                        var purchaseCost = parseFloat(display[i].price * purchaseCount);
+                        connection.query("UPDATE products SET ? WHERE ?", [{ stock_quantity: decrementCount }, { product_name: chosenItem }]);
+                        let tto = require('terminal-table-output').create();
+                        tto.line()
+                        tto.pushrow(["Product Name", "Price (per Item)", "Number Purchased", "Total Cost"])
+                        tto.line()
+                        tto.pushrow([chosenItem, "$" + itemCost + ".00", purchaseCount, "$" + purchaseCost + ".00"])
+                        tto.line()
+                        tto.print(true);
+                    });
+                }
+            }
 
-
-        table();
-        autoTeller();
+        });
     },
-
     // The app should then prompt users with two messages.
     // The first should ask them the ID of the product they would like to buy.
 
@@ -74,28 +89,14 @@ const bamfAzon = {
             },
             message: "Please select the ID of the item you wish to purchase."
         }).then(function(selection) {
-            var chosenItem;
+
             for (let i = 0; i < resSize; i++) {
                 if ("\"" + results[i].item_id + "\"" === selection.itemSelection) {
                     chosenItem = results[i].product_name;
-                    if (chosenItem.stock_quantity > 1) {
+                };
+            };
+            bamfAzon.itemPurchase(chosenItem);
 
-                        bamfAzon.itemDisplay(results);
-
-                        inquirer.prompt({
-                            name: "itemQuantity",
-                            type: "input",
-                            message: "How many would you like to purchase?"
-                        }).then(function(quantity) {
-                            var chosenQuantity;
-                            for (let i = 0; i < 2; i++) {
-                                chosenQuantity = quantity.itemQuantity;
-                                results[i].stock_quantity -= chosenQuantity;
-                            }; // end of chosenQuantity loop.
-                        }); // end of itemQuantity then.
-                    }; // end of in stock check if.
-                }; // end of item selection if.
-            }; // end of results length for loop.
         });
     },
     run: function() {
@@ -106,8 +107,6 @@ const bamfAzon = {
             bamfAzon.autoTeller(results);
             return results;
         });
-
-
     }
 };
 
