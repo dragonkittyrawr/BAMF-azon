@@ -36,24 +36,34 @@ const bamfAzon = {
     itemPurchase: function(chosenItem) {
         connection.query("SELECT item_id, price, stock_quantity FROM products WHERE ?", { product_name: chosenItem }, function(error, display) {
             if (error) throw error;
-            for (let i = 0; i < display.length; i++) {
+            for (var i = 0; i < display.length; i++) {
                 var itemCost = display[i].price;
+                var stock = parseFloat(display[i].stock_quantity);
                 let tto = require('terminal-table-output').create();
                 tto.line()
                 tto.pushrow(["Item ID", "Product Name", "Price (per Item)", "Stock Quantity"])
                 tto.line()
-                tto.pushrow([display[i].item_id, chosenItem, "$" + itemCost + ".00", display[i].stock_quantity])
+                tto.pushrow([display[i].item_id, chosenItem, "$" + itemCost + ".00", stock])
                 tto.line()
                 tto.print(true);
                 if (display !== undefined) {
                     inquirer.prompt({
                         name: "itemQuantity",
                         type: "input",
+                        validate: function(answer) {
+                            if (stock < answer.itemQuantity || stock === 0) {
+                                console.log("Sorry we don't have enough stock for that order!");
+                                return false;
+                            } else {
+                                return true;
+                            }
+                        },
                         message: "How many would you like to purchase?"
                     }).then(function(quantity) {
                         var purchaseCount = quantity.itemQuantity;
-                        var decrementCount = display[i].stock_quantity - purchaseCount;
-                        var purchaseCost = parseFloat(display[i].price * purchaseCount);
+                        var decrementCount = stock - purchaseCount;
+                        var purchaseCost = parseFloat(itemCost * purchaseCount);
+
                         connection.query("UPDATE products SET ? WHERE ?", [{ stock_quantity: decrementCount }, { product_name: chosenItem }]);
                         let tto = require('terminal-table-output').create();
                         tto.line()
@@ -62,6 +72,7 @@ const bamfAzon = {
                         tto.pushrow([chosenItem, "$" + itemCost + ".00", purchaseCount, "$" + purchaseCost + ".00"])
                         tto.line()
                         tto.print(true);
+
                     });
                 }
             }
